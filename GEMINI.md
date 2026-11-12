@@ -5,6 +5,18 @@ Follow all rules below at all times without being asked.
 
 ---
 
+## Auto-Push Rule (Most Important)
+
+After EVERY file change, addition, or deletion — immediately run:
+```bash
+git add -A
+git commit -m "<verb> <what>"
+git push origin main
+```
+Never leave changes uncommitted. Never ask the user if they want to push. Just do it.
+
+---
+
 ## Git Rules
 
 - Every commit message must follow: `<verb> <what> [<where>]`

@@ -172,3 +172,4 @@ def get_ota_latest():
         return {"update": False}
     fw = res.data[0]
     return {"update": True, "version": fw["version"], "url": fw["binary_url"], "notes": fw["notes"]}
+

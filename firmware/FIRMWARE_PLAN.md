@@ -225,3 +225,4 @@ Before calling judges:
 - PSRAM must be allocated explicitly: `heap_caps_malloc(size, MALLOC_CAP_SPIRAM)`
 - Camera and face recognition MUST run on Core 1 to avoid blocking Core 0
 - Use `millis()` timers everywhere — never `delay()` in main loop
+
