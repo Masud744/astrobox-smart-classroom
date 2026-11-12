@@ -97,4 +97,5 @@ After every judging call pass:
 3. Check `.skills/evidence-checklist.md` before any judging call
 4. Check `.skills/judging-call-strategy.md` for call timing decisions
 5. Use `.skills/writeup-template.md` for every write-up
+6. For all frontend/UI design, strictly follow `landing-page-design` (Geist/Manrope/Poppins, strict spacing tokens, nested radius formula, flat backgrounds, no italics).
 
