@@ -160,3 +160,4 @@ Write commits like you're telling a teammate what changed:
 - [ ] Are there any variable names you wouldn't use if a senior dev was watching?
 - [ ] Does every function do exactly one thing?
 - [ ] Are there any dead/commented-out code blocks?
+

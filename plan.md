@@ -223,3 +223,4 @@ astrobox-smart-classroom/
 | Both attempts fail = all future levels closed | Most dangerous rule |
 | Evidence must be uploaded within 30 min | Score becomes 0 |
 | 1st attempt pass = 100%, 2nd = 70% | Test before calling |
+
