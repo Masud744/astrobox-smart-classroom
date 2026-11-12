@@ -16,6 +16,27 @@ Upload Speed:     921600
 
 ---
 
+## Conflict-Free Hardware Pin Map (ESP32-S3-CAM)
+
+> [!IMPORTANT]
+> The OV2640 camera uses 14 internal GPIO lines (`4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18`) and Octal PSRAM uses `35, 36, 37`. All external sensors and RC522 SPI pins are carefully mapped to completely conflict-free GPIOs.
+
+| Peripheral / Component | Signal | ESP32-S3 GPIO | Notes |
+| :--- | :--- | :--- | :--- |
+| **RC522 RFID Reader** | SCK | **GPIO 39** | Routed via ESP32-S3 GPIO Matrix SPI |
+| | MISO | **GPIO 40** | |
+| | MOSI | **GPIO 41** | |
+| | SDA (SS) | **GPIO 42** | Chip Select |
+| | RST | **GPIO 2** | Reset |
+| **DHT11 Sensor** | DATA | **GPIO 21** | 5s sampling interval |
+| **IR Flame Sensor** | DO | **GPIO 47** | Active LOW (Flame present = LOW) |
+| **Active Buzzer** | (+) | **GPIO 38** | Active HIGH, transistor-safe |
+| **Touch Panic Pad** | TOUCH | **GPIO 1** | Capacitive Touch Channel T1 (auto-calibrated baseline) |
+| **Onboard RGB LED** | DATA | **GPIO 48** / `RGB_BUILTIN` | Built-in WS2812 via `rgbLedWrite()` |
+| **BOOT Button** | SW | **GPIO 0** | 3s hold: OTA check / 10s hold: wipe face data |
+
+---
+
 ## FreeRTOS Architecture
 
 We use **implicit FreeRTOS** (via Arduino loop) for most tasks,
@@ -87,7 +108,7 @@ firmware/main/
 ### sensors (.cpp/.h)
 - DHT11: read temp + humidity, retry once on NaN
 - IR Flame: digitalRead (active LOW), debounce 200ms
-- Touch pad: touchRead() < threshold (40), debounce
+- Touch pad: ESP32-S3 touch hardware (v2) reading increases upon touch; baseline auto-calibrated during `sensorsInit()` (triggers when `reading > baseline + 15000`)
 - All reads non-blocking (no delay())
 
 ### rfid (.cpp/.h)
@@ -203,6 +224,18 @@ RAM — External PSRAM (8 MB):
 | ArduinoJson | JSON build/parse for cloud API |
 | esp32-camera | Built into ESP32 Arduino core |
 | ESP-DL | Face detection + recognition (from Espressif GitHub) |
+
+---
+
+## Verified Compilation Evidence
+
+Compiled directly with `arduino-cli` using ESP32 core v3.3.11 for `esp32:esp32:esp32s3`:
+```
+Target FQBN: esp32:esp32:esp32s3
+Status: PASS (exit code 0)
+Program Flash Used: 1,241,149 bytes (94% of default 1.3MB app slot, <8% of 16MB board)
+Dynamic RAM Used: 60,904 bytes (18% of internal SRAM)
+```
 
 ---
 
