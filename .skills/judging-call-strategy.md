@@ -114,3 +114,4 @@ Call-এর মাঝে idle থাকবে না — পরের level-এ�
 | Cloud down | Local status page দিয়ে চালিয়ে যাও |
 | Call শেষে ভুলে গেছ evidence দিতে | ৩০ মিনিট আছে — rush করো! |
 | ৪টি call শেষ | থামো, evidence ঠিকঠাক জমা দাও |
+
