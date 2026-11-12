@@ -1,0 +1,45 @@
+# ── Secrets & Environment ──────────────────────────────────────
+.env
+.env.local
+.env.production
+*.secret
+
+# ── AI Agent / Brain Files ─────────────────────────────────────
+.gemini/
+.agy/
+brain/
+.system_generated/
+*.brain
+
+# ── Arduino / PlatformIO Build ─────────────────────────────────
+firmware/.pio/
+firmware/build/
+*.bin
+*.elf
+*.hex
+*.map
+
+# ── Node / JS ──────────────────────────────────────────────────
+node_modules/
+.next/
+dist/
+.cache/
+
+# ── Python ─────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# ── OS ─────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Logs ───────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── IDE ────────────────────────────────────────────────────────
+.vscode/settings.json
+.idea/
+*.swp
