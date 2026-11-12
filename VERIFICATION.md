@@ -79,3 +79,4 @@ All project files, skills, firmware, dashboard, and config verified.
 | Face training data save করা | শুধু competition-এর দিন, শেষে delete |
 | Exact level challenges জানা | Main question paper competition-এর দিন |
 | Response time limits hardcode | Question paper-এ দেওয়া হবে |
+
