@@ -19,8 +19,10 @@ db: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_ANON_K
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# Dashboard file path
-DASHBOARD_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "dashboard", "index.html"))
+# Dashboard build path (React Vite build)
+DASHBOARD_DIST = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "dashboard", "dist"))
+DASHBOARD_INDEX = os.path.join(DASHBOARD_DIST, "index.html")
+DASHBOARD_ASSETS = os.path.join(DASHBOARD_DIST, "assets")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -39,6 +41,10 @@ app.add_middleware(
 
 # Mount uploads directory for static binary distribution
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+
+# Mount dashboard static assets if built
+if os.path.exists(DASHBOARD_ASSETS):
+    app.mount("/assets", StaticFiles(directory=DASHBOARD_ASSETS), name="dashboard-assets")
 
 # ── Pydantic Models ────────────────────────────────────────
 
@@ -88,8 +94,11 @@ def health():
 
 @app.get("/dashboard")
 def serve_dashboard():
-    if os.path.exists(DASHBOARD_FILE):
-        return FileResponse(DASHBOARD_FILE)
+    if os.path.exists(DASHBOARD_INDEX):
+        return FileResponse(DASHBOARD_INDEX)
+    fallback = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "dashboard", "index.html"))
+    if os.path.exists(fallback):
+        return FileResponse(fallback)
     raise HTTPException(status_code=404, detail="Dashboard file not found")
 
 # ── Settings ───────────────────────────────────────────────

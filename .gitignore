@@ -23,6 +23,7 @@ firmware/build/
 node_modules/
 .next/
 dist/
+!dashboard/dist/
 .cache/
 
 # ── Python ─────────────────────────────────────────────────────
