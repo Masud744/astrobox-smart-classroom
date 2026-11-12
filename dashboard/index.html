@@ -140,6 +140,24 @@
   <span id="save-status" style="margin-left:1rem;font-size:.85rem;color:#22c55e;display:none;">✓ Saved</span>
 </div>
 
+<!-- OTA Firmware Management -->
+<div class="section">
+  <h2>OTA Firmware Update</h2>
+  <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end;">
+    <label style="flex:1;min-width:200px;">Firmware Binary (.bin)
+      <input type="file" id="ota-file" accept=".bin" style="margin-top:.4rem;padding:.4rem;background:#0f1117;border:1px solid #2d3748;border-radius:6px;width:100%;color:#e2e8f0;">
+    </label>
+    <label style="width:120px;">Version
+      <input type="text" id="ota-version" placeholder="1.0.1" style="margin-top:.4rem;padding:.4rem;background:#0f1117;border:1px solid #2d3748;border-radius:6px;width:100%;color:#e2e8f0;">
+    </label>
+    <label style="flex:2;min-width:200px;">Release Notes
+      <input type="text" id="ota-notes" placeholder="Bug fixes and improvements" style="margin-top:.4rem;padding:.4rem;background:#0f1117;border:1px solid #2d3748;border-radius:6px;width:100%;color:#e2e8f0;">
+    </label>
+    <button class="save-btn" style="background:#2563eb;" onclick="uploadFirmware()">Deploy OTA</button>
+  </div>
+  <div id="ota-status" style="margin-top:.8rem;font-size:.85rem;color:#94a3b8;"></div>
+</div>
+
 <script>
 const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
   ? 'http://localhost:8000'
@@ -265,6 +283,47 @@ async function saveSettings() {
   const s = document.getElementById('save-status');
   s.style.display = 'inline';
   setTimeout(() => s.style.display = 'none', 2000);
+}
+
+async function uploadFirmware() {
+  const fileInput = document.getElementById('ota-file');
+  const versionInput = document.getElementById('ota-version');
+  const notesInput = document.getElementById('ota-notes');
+  const statusEl = document.getElementById('ota-status');
+
+  if (!fileInput.files.length) {
+    alert('Please select a .bin firmware file');
+    return;
+  }
+  const version = versionInput.value.trim() || '1.0.1';
+  const notes = notesInput.value.trim() || 'Manual OTA upload';
+
+  const formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+  formData.append('version', version);
+  formData.append('notes', notes);
+
+  statusEl.innerText = 'Uploading firmware...';
+  statusEl.style.color = '#38bdf8';
+
+  try {
+    const res = await fetch(API + '/api/ota/upload', {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    if (res.ok) {
+      statusEl.innerText = `✓ Version ${data.version} active. ESP32 will flash on next poll or BOOT button press.`;
+      statusEl.style.color = '#22c55e';
+      fileInput.value = '';
+    } else {
+      statusEl.innerText = `✗ Upload failed: ${data.detail || 'Unknown error'}`;
+      statusEl.style.color = '#ef4444';
+    }
+  } catch (err) {
+    statusEl.innerText = `✗ Network error: ${err.message}`;
+    statusEl.style.color = '#ef4444';
+  }
 }
 
 function showAlert(msg) {

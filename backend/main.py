@@ -1,15 +1,26 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from typing import Optional
+from datetime import datetime, timezone
 import os
+import shutil
 
 load_dotenv()
 
 db: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_ANON_KEY"))
+
+# Ensure uploads directory exists
+UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# Dashboard file path
+DASHBOARD_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "dashboard", "index.html"))
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -17,7 +28,7 @@ async def lifespan(app: FastAPI):
     yield
     print("FastRobox API stopped.")
 
-app = FastAPI(title="FastRobox Smart Classroom API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="FastRobox Smart Classroom API", version="1.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -26,7 +37,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Pydantic models ────────────────────────────────────────
+# Mount uploads directory for static binary distribution
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+
+# ── Pydantic Models ────────────────────────────────────────
 
 class SensorPayload(BaseModel):
     room_id: str
@@ -50,7 +64,7 @@ class DoorPayload(BaseModel):
 
 class AlertPayload(BaseModel):
     room_id: str
-    alert_type: str    # flame | panic | temp_high | hum_high | offline | unknown_face
+    alert_type: str    # flame | panic | temp_high | hum_high | offline | unknown_card | unknown_face
 
 class HeartbeatPayload(BaseModel):
     room_id: str
@@ -66,11 +80,17 @@ class SettingsPatch(BaseModel):
     buzzer_enabled: Optional[bool] = None
     door_locked: Optional[bool] = None
 
-# ── Health ─────────────────────────────────────────────────
+# ── Health & Dashboard ─────────────────────────────────────
 
 @app.get("/")
 def health():
-    return {"status": "ok", "project": "fastrobox-classroom"}
+    return {"status": "ok", "project": "fastrobox-classroom", "version": "1.1.0"}
+
+@app.get("/dashboard")
+def serve_dashboard():
+    if os.path.exists(DASHBOARD_FILE):
+        return FileResponse(DASHBOARD_FILE)
+    raise HTTPException(status_code=404, detail="Dashboard file not found")
 
 # ── Settings ───────────────────────────────────────────────
 
@@ -86,7 +106,6 @@ def patch_settings(payload: SettingsPatch):
     updates = payload.model_dump(exclude_none=True)
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
-    from datetime import datetime, timezone
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()
     res = db.table("settings").update(updates).eq("id", 1).execute()
     return res.data[0] if res.data else {"ok": True}
@@ -171,5 +190,46 @@ def get_ota_latest():
     if not res.data:
         return {"update": False}
     fw = res.data[0]
-    return {"update": True, "version": fw["version"], "url": fw["binary_url"], "notes": fw["notes"]}
+    return {"update": True, "version": fw["version"], "url": fw["binary_url"], "notes": fw.get("notes", "")}
 
+@app.post("/api/ota/upload")
+async def upload_ota(
+    request: Request,
+    file: UploadFile = File(...),
+    version: str = Form(...),
+    notes: Optional[str] = Form("Dashboard OTA update")
+):
+    if not file.filename.endswith(".bin"):
+        raise HTTPException(status_code=400, detail="Only .bin firmware files allowed")
+
+    file_path = os.path.join(UPLOAD_DIR, file.filename)
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    base_url = str(request.base_url).rstrip("/")
+    binary_url = f"{base_url}/uploads/{file.filename}"
+
+    # Deactivate previously active firmware updates
+    db.table("ota_firmware").update({"active": False}).eq("active", True).execute()
+
+    # Record new active firmware
+    db.table("ota_firmware").insert({
+        "version": version,
+        "binary_url": binary_url,
+        "notes": notes,
+        "active": True
+    }).execute()
+
+    return {
+        "ok": True,
+        "version": version,
+        "filename": file.filename,
+        "url": binary_url
+    }
+
+# ── Direct Execution ───────────────────────────────────────
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)

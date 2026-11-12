@@ -108,6 +108,8 @@ create policy "public read"  on alerts       for select using (true);
 create policy "public insert" on alerts      for insert with check (true);
 create policy "public read"  on heartbeat    for select using (true);
 create policy "public insert" on heartbeat   for insert with check (true);
-create policy "public read"  on ota_firmware for select using (true);
+create policy "public read"   on ota_firmware for select using (true);
+create policy "public insert" on ota_firmware for insert with check (true);
+create policy "public update" on ota_firmware for update using (true);
 create policy "settings update" on settings for update using (true);
 
