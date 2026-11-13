@@ -18,10 +18,12 @@
 
 static DHT dht(PIN_DHT, DHT11);
 static bool prevFlame = false;
-static uint32_t touchBaseline = 0;
+static uint32_t touchBaseline1 = 0;
+static uint32_t touchBaseline4 = 0;
 static unsigned long lastValidDht = 0;
 static unsigned long flameStartTime = 0;
 static unsigned long touchStartTime = 0;
+static unsigned long panicStartTime = 0;
 
 static float tempHist[10];
 static int tempHistCount = 0;
@@ -96,15 +98,17 @@ void sensorsInit() {
   dht.begin();
   lastValidDht = millis();
 
-  // Auto-calibrate capacitive touch baseline on ESP32-S3
-  uint32_t sum = 0;
+  // Auto-calibrate capacitive touch baseline on ESP32-S3 (supports both GPIO 1 & GPIO 4)
+  uint32_t sum1 = 0, sum4 = 0;
   for (int i = 0; i < 10; i++) {
-    sum += touchRead(PIN_TOUCH);
+    sum1 += touchRead(1);
+    sum4 += touchRead(4);
     delay(20);
   }
-  touchBaseline = sum / 10;
-  Serial.printf("[sensors] DHT11(pin %d), Flame(pin %d), Touch baseline: %u\n",
-                PIN_DHT, PIN_FLAME, touchBaseline);
+  touchBaseline1 = sum1 / 10;
+  touchBaseline4 = sum4 / 10;
+  Serial.printf("[sensors] DHT11(pin %d), Flame(pin %d), Touch baseline (GPIO 1): %u, (GPIO 4): %u\n",
+                PIN_DHT, PIN_FLAME, touchBaseline1, touchBaseline4);
 }
 
 void sensorsRead() {
@@ -183,18 +187,33 @@ void flameCheck() {
 }
 
 void touchCheck() {
-  // ESP32-S3 touch hardware reading increases upon contact
-  uint32_t val = touchRead(PIN_TOUCH);
-  bool touched = (val > (touchBaseline + TOUCH_DELTA_TRIGGER));
   unsigned long now = millis();
 
-  // Task 10: Touching the pad for 2 seconds raises PANIC (<1s ignored)
+  // Test 7: Red & Blue light and buzzer alternate for 10 seconds during PANIC, then restore to SAFE
+  if (state.roomState == STATE_PANIC) {
+    if (now - panicStartTime >= 10000) {
+      state.roomState = STATE_SAFE;
+      Serial.println("[panic] PANIC alert cycle finished (10s). State returned to SAFE.");
+      touchStartTime = 0;
+    }
+    return;
+  }
+
+  // ESP32-S3 capacitive touch reading increases on finger contact
+  // Supports wire connected to either GPIO 4 or GPIO 1
+  uint32_t val1 = touchRead(1);
+  uint32_t val4 = touchRead(4);
+  bool touched = (val1 > (touchBaseline1 + TOUCH_DELTA_TRIGGER)) ||
+                 (val4 > (touchBaseline4 + TOUCH_DELTA_TRIGGER));
+
+  // Touching the pad for 2 seconds raises PANIC (<1s ignored as false alarm filter)
   if (touched) {
     if (touchStartTime == 0) touchStartTime = now;
 
     if (now - touchStartTime >= 2000 && state.roomState != STATE_PANIC) {
       Serial.println("[EVENT] PANIC");
       state.roomState = STATE_PANIC;
+      panicStartTime = now;
       cloudPostEvent("PANIC", "{\"trigger\":\"touch_2s\"}");
       cloudPostAlert("panic");
       // Guard: Door DOES NOT unlock for panic wire touch

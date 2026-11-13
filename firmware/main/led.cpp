@@ -1,6 +1,7 @@
 #include "led.h"
 #include "app_state.h"
 #include "config.h"
+#include "wifi_prov.h"
 
 static bool overrideActive = false;
 static uint8_t ovR = 0, ovG = 0, ovB = 0;
@@ -48,6 +49,9 @@ static void ledHeartbeatTask(void* param) {
     if (state.dhtError || state.rfidError) {
       // Magenta alert for hardware sensor fault (Level 1 spec)
       r = 255; g = 0; b = 255;
+    } else if (prov.isSetupMode() || (!state.wifiConnected && !wifiIsConnected())) {
+      // Blue 2 Hz heartbeat in setup mode (Level 2 Row A3 & Test 3)
+      r = 0; g = 0; b = 255;
     } else {
       switch (state.roomState) {
         case STATE_SAFE:

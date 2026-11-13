@@ -2,9 +2,28 @@
 #include "app_state.h"
 #include "config.h"
 #include <WiFi.h>
+#include <Preferences.h>
 
 // Single global instance of SmartProv
 SmartProv prov;
+static Preferences apPrefs;
+static String apPassword = "";
+
+static String getApPassword() {
+  if (apPassword.length() >= 8) return apPassword;
+  apPrefs.begin("wifi_ap", false);
+  apPassword = apPrefs.getString("pass", "");
+  if (apPassword.length() < 8) {
+    const char chars[] = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+    apPassword = "";
+    for (int i = 0; i < 8; i++) {
+      apPassword += chars[random(0, sizeof(chars) - 1)];
+    }
+    apPrefs.putString("pass", apPassword);
+  }
+  apPrefs.end();
+  return apPassword;
+}
 
 void wifiProvInit() {
   // Register dynamic custom fields before calling begin()
@@ -18,7 +37,7 @@ void wifiProvInit() {
 
   // Callback executed automatically as soon as Wi-Fi establishes connection
   prov.onConnected([]() {
-    Serial.println("\n[SmartProv] Wi-Fi connection established!");
+    Serial.printf("\n[NET] Connected | IP: %s\n", prov.getIP().c_str());
     String url = prov.getField("cloud_url");
     if (url.length() > 0) state.cloudUrl = url;
     String rid = prov.getField("room_id");
@@ -54,7 +73,9 @@ void wifiProvInit() {
     if (cs.length() > 0) state.classStart = cs;
     state.wifiConnected = true;
   } else if (prov.isSetupMode()) {
-    Serial.println("\n[SmartProv] Setup mode active. Connect phone to setup AP to configure.");
+    String pass = getApPassword();
+    Serial.printf("\n[NET] Starting AP SmartClass-T10, pass=%s at 192.168.4.1\n", pass.c_str());
+    Serial.println("[SmartProv] Setup mode active. Connect phone to setup AP to configure.");
   } else {
     Serial.println("\n[wifi] Connecting in background...");
   }

@@ -70,11 +70,11 @@ static void startMdns() {
   if (mdnsStarted) return;
   if (!wifiIsConnected()) return;
 
-  if (MDNS.begin("smartclass-t07")) {
+  if (MDNS.begin("smartclass-t10")) {
     MDNS.addService("http", "tcp", LOCAL_SERVER_PORT);
     mdnsStarted = true;
-    Serial.printf("[mdns] Responder active: http://smartclass-t07.local\n");
-    Serial.printf("[wifi] IP: %s | mDNS: http://smartclass-t07.local\n",
+    Serial.printf("[mdns] Responder active: http://smartclass-t10.local\n");
+    Serial.printf("[wifi] IP: %s | mDNS: http://smartclass-t10.local\n",
                   WiFi.localIP().toString().c_str());
   }
 }
@@ -91,10 +91,11 @@ static void handleSerialCommands() {
   } else if (cmd == "status") {
     printStatusLine();
   } else if (cmd == "health") {
-    Serial.printf("[HEALTH] chip=%.1fC heap=%luk psram=%luk uptime=%lus\n",
+    Serial.printf("[HEALTH] chip=%.1fC heap=%luk psram=%luk rssi=%d uptime=%lus\n",
                   temperatureRead(),
                   ESP.getFreeHeap() / 1024,
                   ESP.getFreePsram() / 1024,
+                  WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : 0,
                   millis() / 1000);
   } else if (cmd == "tasks") {
     // Checklist Row A1: Must list at least 3 tasks using both cores
@@ -164,6 +165,12 @@ static void checkBootButton() {
     if (held > 10000) {
       faceClearAll();
       buzzerBeep(5, 80);
+      pressed = false;
+    } else if (held >= 5000 && held <= 5500) {
+      Serial.println("[CMD] BOOT held 5s: Resetting Wi-Fi credentials and restarting into setup mode...");
+      ledSetOverride(true, 0, 0, 255); // Blue light
+      buzzerBeep(3, 80);
+      prov.resetCredentials();
       pressed = false;
     } else if (held > 3000 && held <= 3200) {
       buzzerBeep(2, 80);
