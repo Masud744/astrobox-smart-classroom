@@ -1,6 +1,25 @@
 #pragma once
 #include <Arduino.h>
 
+enum RoomState {
+  STATE_SAFE,
+  STATE_WARNING,
+  STATE_DANGER,
+  STATE_FIRE,
+  STATE_PANIC
+};
+
+inline const char* roomStateToString(RoomState s) {
+  switch (s) {
+    case STATE_SAFE:    return "SAFE";
+    case STATE_WARNING: return "WARNING";
+    case STATE_DANGER:  return "DANGER";
+    case STATE_FIRE:    return "FIRE";
+    case STATE_PANIC:   return "PANIC";
+    default:            return "UNKNOWN";
+  }
+}
+
 // ── Shared state (read by any module) ─────────────────────
 struct AppState {
   // Config from SmartProv / cloud
@@ -12,11 +31,16 @@ struct AppState {
   bool   buzzerOn     = true;
   bool   doorLocked   = true;
 
-  // Live sensor readings
-  float  temp         = 0.0f;
-  float  hum          = 0.0f;
-  bool   flame        = false;
-  int    rssi         = 0;
+  // Live sensor readings & states
+  float     temp         = 0.0f;
+  float     hum          = 0.0f;
+  bool      flame        = false;
+  int       rssi         = 0;
+  RoomState roomState    = STATE_SAFE;
+
+  // Sensor diagnostic error flags (Level 1)
+  bool dhtError  = false;
+  bool rfidError = false;
 
   // Face recognition result (written by Core 1, read by Core 0)
   volatile bool  faceDetected   = false;
@@ -24,8 +48,8 @@ struct AppState {
   char           faceLabel[32]  = "";
 
   // Runtime flags
-  bool   wifiConnected   = false;
-  bool   offlineMode     = false;
+  bool wifiConnected = false;
+  bool offlineMode   = false;
 };
 
 extern AppState state;

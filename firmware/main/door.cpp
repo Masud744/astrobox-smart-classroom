@@ -12,9 +12,6 @@ void doorSetLocked(bool locked, const String& trigger) {
   if (state.doorLocked == locked) return;
 
   state.doorLocked = locked;
-  // Red = Locked, Green = Unlocked
-  ledSet(locked ? 255 : 0, locked ? 0 : 255, 0);
-
   Serial.printf("[door] %s triggered by %s\n",
                 locked ? "LOCKED" : "UNLOCKED", trigger.c_str());
 

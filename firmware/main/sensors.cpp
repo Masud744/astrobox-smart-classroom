@@ -11,10 +11,12 @@ static DHT dht(PIN_DHT, DHT11);
 static bool prevFlame = false;
 static bool prevTouch = false;
 static uint32_t touchBaseline = 0;
+static unsigned long lastValidDht = 0;
 
 void sensorsInit() {
   pinMode(PIN_FLAME, INPUT);
   dht.begin();
+  lastValidDht = millis();
 
   // Auto-calibrate capacitive touch baseline on ESP32-S3
   uint32_t sum = 0;
@@ -31,9 +33,21 @@ void sensorsRead() {
   float t = dht.readTemperature();
   float h = dht.readHumidity();
 
-  // DHT11 occasionally drops a cycle; maintain previous known valid value
-  if (!isnan(t)) state.temp = t;
-  if (!isnan(h)) state.hum  = h;
+  // DHT11 12-second timeout detection (Question Paper Requirement)
+  if (isnan(t) || isnan(h)) {
+    if (millis() - lastValidDht >= 12000 && !state.dhtError) {
+      state.dhtError = true;
+      Serial.println("[ERROR] SENSOR ERROR: DHT11");
+    }
+  } else {
+    if (state.dhtError) {
+      state.dhtError = false;
+      Serial.println("[INFO] SENSOR RECOVERED: DHT11");
+    }
+    lastValidDht = millis();
+    state.temp = t;
+    state.hum  = h;
+  }
 
   state.rssi = WiFi.RSSI();
 
@@ -51,12 +65,13 @@ void flameCheck() {
 
   if (flame && !prevFlame) {
     Serial.println("[flame] ALERT! Flame detected!");
-    ledSet(255, 0, 0);       // Red alert LED
+    state.roomState = STATE_FIRE;
     buzzerAlarm();
     cloudPostAlert("flame");
   } else if (!flame && prevFlame) {
-    // Return to current door state color
-    ledSet(state.doorLocked ? 255 : 0, state.doorLocked ? 0 : 255, 0);
+    if (state.roomState == STATE_FIRE) {
+      state.roomState = STATE_SAFE;
+    }
   }
 
   state.flame = flame;
@@ -71,8 +86,13 @@ void touchCheck() {
   if (touched && !prevTouch) {
     Serial.printf("[panic] Touch panic pad triggered! (val: %u, base: %u)\n",
                   val, touchBaseline);
+    state.roomState = STATE_PANIC;
     buzzerBeep(4, 120);
     cloudPostAlert("panic");
+  } else if (!touched && prevTouch) {
+    if (state.roomState == STATE_PANIC) {
+      state.roomState = STATE_SAFE;
+    }
   }
 
   prevTouch = touched;
