@@ -15,7 +15,7 @@
 #include <time.h>
 #include <SmartProv.h>
 #include <esp_task_wdt.h>
-#include <esp_reset_reason.h>
+#include <esp_system.h>
 
 // ── Global System State & IPC ─────────────────────────────
 AppState state;
@@ -166,7 +166,9 @@ void setup() {
     .idle_core_mask = 0,
     .trigger_panic = true
   };
-  esp_task_wdt_init(&wdtConfig);
+  if (esp_task_wdt_init(&wdtConfig) == ESP_ERR_INVALID_STATE) {
+    esp_task_wdt_reconfigure(&wdtConfig);
+  }
   esp_task_wdt_add(NULL); // Add current Core 0 thread to watchdog
 
   // Initialize status LED and start background 2 Hz FreeRTOS heartbeat task
