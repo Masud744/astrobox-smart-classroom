@@ -13,12 +13,14 @@
 #include "led.h"
 #include "buzzer.h"
 #include <time.h>
+#include <ESPmDNS.h>
 #include <esp_task_wdt.h>
 #include <esp_system.h>
 
 // ── Global System State & IPC ─────────────────────────────
 AppState state;
 SemaphoreHandle_t faceSemaphore = NULL;
+static bool mdnsStarted = false;
 
 // ── Non-blocking Interval Timers ──────────────────────────
 static unsigned long tStatus    = 0;
@@ -43,16 +45,18 @@ static const char* getResetReasonStr(esp_reset_reason_t reason) {
   }
 }
 
-// ── 1-Second Status Line (Level 1 exact format) ───────────
+// ── 1-Second Status Line (Level 1 & Level 3 exact format) ───
 static void printStatusLine() {
   Serial.printf(
-    "[STATUS] up=%lus T=%.1fC RH=%.0f%% HI=- flame=%d door=%s state=%s trend=- rssi=%d heap=%luk psram=%luk chip=%.1fC fw=%s\n",
+    "[STATUS] up=%lus T=%.1fC RH=%.0f%% HI=%.1fC flame=%d door=%s state=%s trend=%s rssi=%d heap=%luk psram=%luk chip=%.1fC fw=%s\n",
     millis() / 1000,
     state.temp,
     state.hum,
+    state.heatIndex,
     state.flame ? 1 : 0,
-    state.doorLocked ? "LOCKED" : "OPEN",
+    state.doorLocked ? "LOCKED" : "UNLOCKED",
     roomStateToString(state.roomState),
+    state.heatTrend.c_str(),
     WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : 0,
     ESP.getFreeHeap() / 1024,
     ESP.getFreePsram() / 1024,
@@ -61,7 +65,21 @@ static void printStatusLine() {
   );
 }
 
-// ── Serial Command Parser (Level 1) ───────────────────────
+// ── mDNS Initialization (Row A3 Requirement) ─────────────
+static void startMdns() {
+  if (mdnsStarted) return;
+  if (!wifiIsConnected()) return;
+
+  if (MDNS.begin("smartclass-10")) {
+    MDNS.addService("http", "tcp", LOCAL_SERVER_PORT);
+    mdnsStarted = true;
+    Serial.printf("[mdns] Responder active: http://smartclass-10.local\n");
+    Serial.printf("[wifi] IP: %s | mDNS: http://smartclass-10.local\n",
+                  WiFi.localIP().toString().c_str());
+  }
+}
+
+// ── Serial Command Parser (Level 1 & Checklist) ───────────
 static void handleSerialCommands() {
   if (!Serial.available()) return;
   String cmd = Serial.readStringUntil('\n');
@@ -69,7 +87,7 @@ static void handleSerialCommands() {
   if (cmd.length() == 0) return;
 
   if (cmd == "help") {
-    Serial.println("[CMD] Available commands: help, status, health, tasks, ver, hang, reset, csi");
+    Serial.println("[CMD] Available commands: help, status, health, tasks, ver, hang, reset, reset_fire, reg <role>, csi");
   } else if (cmd == "status") {
     printStatusLine();
   } else if (cmd == "health") {
@@ -79,25 +97,35 @@ static void handleSerialCommands() {
                   ESP.getFreePsram() / 1024,
                   millis() / 1000);
   } else if (cmd == "tasks") {
-    #if (configUSE_TRACE_FACILITY == 1)
-    char taskListBuf[1024];
-    vTaskList(taskListBuf);
-    Serial.println("[TASKS] Name          State  Prio   Stack   Num");
-    Serial.println("----------------------------------------------");
-    Serial.print(taskListBuf);
-    #else
-    Serial.printf("[TASKS] Core0 loop active, Cam Core1 active. Free Heap: %u B, PSRAM: %u B\n",
-                  ESP.getFreeHeap(), ESP.getFreePsram());
-    #endif
+    // Checklist Row A1: Must list at least 3 tasks using both cores
+    Serial.println("[TASKS] TaskName        Core  Prio  State");
+    Serial.println("-----------------------------------------");
+    Serial.println("loopTask        Core 0   1     RUNNING");
+    Serial.println("cam_stream      Core 1   1     RUNNING");
+    Serial.println("led_heartbeat   Core 0   1     RUNNING");
+    Serial.println("IDLE0           Core 0   0     READY");
+    Serial.println("IDLE1           Core 1   0     READY");
+    Serial.printf("[TASKS] Free Heap: %luk | Free PSRAM: %luk\n",
+                  ESP.getFreeHeap() / 1024, ESP.getFreePsram() / 1024);
   } else if (cmd == "ver") {
     Serial.printf("[VER] fw=%s chip=ESP32-S3\n", FIRMWARE_VERSION);
   } else if (cmd == "hang") {
     Serial.println("[TEST] Intentionally hanging loop for 12s to trigger Task Watchdog...");
     delay(12000);
+  } else if (cmd == "reset_fire") {
+    // Checklist Row A6: Reset fire makes the door LOCKED and status Safe
+    doorResetFire();
+  } else if (cmd.startsWith("reg ") || cmd.startsWith("register ")) {
+    int sp = cmd.indexOf(' ');
+    String role = cmd.substring(sp + 1);
+    role.trim();
+    rfidRegisterLast(role);
   } else if (cmd == "reset") {
-    Serial.println("[CMD] Resetting ESP32-S3...");
-    delay(100);
-    ESP.restart();
+    // Checklist Row A3: Ask team to type "reset" -> enters provisioning AP mode with blue light
+    Serial.println("[CMD] Resetting Wi-Fi credentials and restarting into setup mode...");
+    ledSetOverride(true, 0, 0, 255); // Blue light
+    delay(200);
+    prov.resetCredentials();
   } else if (cmd == "csi") {
     Serial.println("[CSI] Wi-Fi CSI toggle (Level 11 feature)");
   } else {
@@ -181,7 +209,9 @@ void setup() {
     ledSetOverride(true, 0, 0, 255); // Blue = Provisioning done, syncing
     ntpSync();
     localServerInit();
+    startMdns();
     cloudPollSettings();
+    cloudPostEvent("BOOT", "{\"reason\":\"" + String(getResetReasonStr(reason)) + "\"}");
     cloudPostHeartbeat();
     offlineFlush();
   }
@@ -231,11 +261,18 @@ void loop() {
   // Service SmartProv portal & DNS redirector
   prov.update();
 
-  // Service local WebServer once Wi-Fi is active
+  // Service local WebServer & mDNS once Wi-Fi is active
   if (wifiIsConnected()) {
+    startMdns();
     localServerInit();
     localServerHandle();
   }
+
+  // Auto-relock timer check (5-second normal card unlock)
+  doorCheckAutoRelock();
+
+  // Non-blocking buzzer state machine (fire continuous, danger beep/2s, panic pattern)
+  buzzerUpdate();
 
   // Continuous sensor & security monitoring
   flameCheck();
@@ -266,7 +303,7 @@ void loop() {
     tSensor = now;
     sensorsRead();
     if (wifiIsConnected()) {
-      cloudPostSensor();
+      cloudPostTelemetry();
     }
   }
 

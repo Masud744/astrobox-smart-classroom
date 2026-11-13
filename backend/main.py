@@ -3,7 +3,7 @@ from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from typing import Optional
@@ -66,6 +66,25 @@ class TelemetryPayload(BaseModel):
     chip_temp_c: Optional[float] = None
     fw: Optional[str] = "1.0.0"
     quality: Optional[str] = "good"
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_keys(cls, data):
+        if isinstance(data, dict):
+            mapping = {
+                "deviceId": "device_id",
+                "roomId": "room_id",
+                "uptimeS": "uptime_s",
+                "tempC": "temp_c",
+                "heatIndexC": "heat_index_c",
+                "heatTrend": "heat_trend",
+                "heapKb": "heap_kb",
+                "chipTempC": "chip_temp_c",
+            }
+            for camel, snake in mapping.items():
+                if camel in data and snake not in data:
+                    data[snake] = data[camel]
+        return data
 
 class EventPayload(BaseModel):
     device_id: Optional[str] = None

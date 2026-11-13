@@ -7,6 +7,19 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <WiFi.h>
+#include <Preferences.h>
+#include <time.h>
+
+static Preferences cloudPrefs;
+
+static uint32_t getNextSeq() {
+  cloudPrefs.begin("cloud", false);
+  uint32_t s = cloudPrefs.getUInt("seq", 0) + 1;
+  cloudPrefs.putUInt("seq", s);
+  cloudPrefs.end();
+  state.seq = s;
+  return s;
+}
 
 // ── Low-level HTTP Helpers ────────────────────────────────
 
@@ -47,6 +60,53 @@ static String httpGet(const String& path) {
 }
 
 // ── Public API ────────────────────────────────────────────
+
+bool cloudPostTelemetry() {
+  uint32_t seq = getNextSeq();
+  time_t nowTs = 0;
+  time(&nowTs);
+
+  JsonDocument doc;
+  doc["device_id"]    = state.deviceId.isEmpty() ? "T10-D1" : state.deviceId;
+  doc["room_id"]      = state.roomId.isEmpty() ? "ROOM-01" : state.roomId;
+  doc["seq"]          = seq;
+  doc["ts"]           = (long)nowTs;
+  doc["uptime_s"]     = (long)(millis() / 1000);
+  doc["temp_c"]       = serialized(String(state.temp, 1));
+  doc["rh"]           = serialized(String(state.hum, 1));
+  doc["heat_index_c"] = serialized(String(state.heatIndex, 1));
+  doc["flame"]        = state.flame;
+  doc["door"]         = state.doorLocked ? "LOCKED" : "UNLOCKED";
+  doc["status"]       = roomStateToString(state.roomState);
+  doc["heat_trend"]   = state.heatTrend;
+  doc["rssi"]         = state.rssi;
+  doc["heap_kb"]      = (int)(ESP.getFreeHeap() / 1024);
+  doc["chip_temp_c"]  = serialized(String(temperatureRead(), 1));
+  doc["fw"]           = FIRMWARE_VERSION;
+  doc["quality"]      = state.quality;
+
+  String body;
+  serializeJson(doc, body);
+
+  bool ok = httpPost("/api/telemetry", body);
+  cloudPostSensor(); // for backward compatibility with sensor endpoints
+  return ok;
+}
+
+bool cloudPostEvent(const String& type, const String& detailJson) {
+  uint32_t seq = getNextSeq();
+  time_t nowTs = 0;
+  time(&nowTs);
+
+  String body = "{\"device_id\":\"" + (state.deviceId.isEmpty() ? "T10-D1" : state.deviceId) + "\","
+                "\"room_id\":\"" + (state.roomId.isEmpty() ? "ROOM-01" : state.roomId) + "\","
+                "\"seq\":" + String(seq) + ","
+                "\"ts\":" + String((long)nowTs) + ","
+                "\"type\":\"" + type + "\","
+                "\"detail\":" + (detailJson.isEmpty() ? "{}" : detailJson) + "}";
+
+  return httpPost("/api/event", body);
+}
 
 bool cloudPostSensor() {
   String body = "{\"room_id\":\"" + state.roomId + "\","
@@ -107,6 +167,12 @@ bool cloudPollSettings() {
   float newTempMax = doc["temp_max"] | state.tempMax;
   if (newTempMax != state.tempMax) {
     state.tempMax = newTempMax;
+    changed = true;
+  }
+
+  bool resetFire = doc["reset_fire"] | false;
+  if (resetFire) {
+    doorResetFire();
     changed = true;
   }
 

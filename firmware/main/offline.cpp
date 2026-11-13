@@ -1,22 +1,22 @@
 #include "offline.h"
 #include "app_state.h"
 #include "wifi_prov.h"
-#include <SPIFFS.h>
+#include <LittleFS.h>
 #include <HTTPClient.h>
 
 #define QUEUE_FILE "/offline_queue.jsonl"
 #define MAX_ENTRIES 500
 
 void offlineInit() {
-  if (!SPIFFS.begin(true)) {
-    Serial.println("[offline] SPIFFS mount failed!");
+  if (!LittleFS.begin(true)) {
+    Serial.println("[offline] LittleFS mount failed!");
     return;
   }
-  Serial.println("[offline] SPIFFS storage initialized");
+  Serial.println("[offline] LittleFS storage initialized");
 }
 
 void offlineQueue(const String& path, const String& body) {
-  File f = SPIFFS.open(QUEUE_FILE, FILE_APPEND);
+  File f = LittleFS.open(QUEUE_FILE, FILE_APPEND);
   if (!f) return;
 
   // Store entry as line: {"path":"/api/...","body":{...}}
@@ -27,10 +27,10 @@ void offlineQueue(const String& path, const String& body) {
 }
 
 void offlineFlush() {
-  if (!SPIFFS.exists(QUEUE_FILE)) return;
+  if (!LittleFS.exists(QUEUE_FILE)) return;
   if (!wifiIsConnected()) return;
 
-  File f = SPIFFS.open(QUEUE_FILE, FILE_READ);
+  File f = LittleFS.open(QUEUE_FILE, FILE_READ);
   if (!f) return;
 
   int flushed = 0, failed = 0;
@@ -62,7 +62,7 @@ void offlineFlush() {
   f.close();
 
   if (failed == 0) {
-    SPIFFS.remove(QUEUE_FILE);
+    LittleFS.remove(QUEUE_FILE);
     Serial.printf("[offline] Successfully flushed %d offline records to cloud\n", flushed);
   } else {
     Serial.printf("[offline] Flushed %d records, %d failed (queue preserved)\n", flushed, failed);

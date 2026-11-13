@@ -4,4 +4,5 @@
 void rfidInit();
 void rfidCheck();     // call every loop — scans for card, handles on detect
 void rfidRegister(const String& uid, const String& role);  // save to NVS
+void rfidRegisterLast(const String& role);
 

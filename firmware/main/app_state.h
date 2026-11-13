@@ -47,9 +47,23 @@ struct AppState {
   volatile float faceConfidence = 0.0f;
   char           faceLabel[32]  = "";
 
+  // Level 3 Live metrics & diagnostics
+  float     heatIndex    = 0.0f;
+  String    heatTrend    = "STABLE";
+  String    quality      = "good";
+  String    lastSilenceRefusedMsg = "";
+
+  // Device & Telemetry identification (Level 2)
+  String        deviceId     = "T10-D1";
+  uint32_t      seq          = 0;
+
   // Runtime flags
   bool wifiConnected = false;
   bool offlineMode   = false;
+
+  // Last scanned card (Level 2 A4 requirement)
+  String        lastCardUid  = "-";
+  unsigned long lastCardTime = 0;
 };
 
 extern AppState state;
