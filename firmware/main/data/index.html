@@ -173,6 +173,10 @@
         <div class="card-title">System Uptime</div>
         <div class="card-val" id="uptime">-- s</div>
       </div>
+      <div class="card">
+        <div class="card-title">Firmware Version</div>
+        <div class="card-val" id="fw">v1.1.0</div>
+      </div>
     </div>
 
     <div class="btn-row">
@@ -218,6 +222,7 @@
           document.getElementById('rssi').innerText = d.wifi_rssi + ' dBm';
           document.getElementById('chip').innerText = d.chip_temp.toFixed(1) + ' °C';
           document.getElementById('uptime').innerText = d.uptime_sec + ' s';
+          document.getElementById('fw').innerText = 'v' + (d.firmware || d.fw || '1.1.0');
 
           const badge = document.getElementById('live-badge');
           badge.innerText = d.connection_state;

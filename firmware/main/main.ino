@@ -73,8 +73,8 @@ static void startMdns() {
   if (MDNS.begin("smartclass-t10")) {
     MDNS.addService("http", "tcp", LOCAL_SERVER_PORT);
     mdnsStarted = true;
-    Serial.printf("[mdns] Responder active: http://smartclass-t10.local\n");
-    Serial.printf("[wifi] IP: %s | mDNS: http://smartclass-t10.local\n",
+    Serial.printf("[NET] mDNS responder active: http://smartclass-t10.local\n");
+    Serial.printf("[NET] IP: %s | mDNS: http://smartclass-t10.local\n",
                   WiFi.localIP().toString().c_str());
   }
 }
@@ -126,6 +126,10 @@ static void handleSerialCommands() {
     Serial.println("[CMD] Resetting Wi-Fi credentials and restarting into setup mode...");
     ledSetOverride(true, 0, 0, 255); // Blue light
     delay(200);
+    Preferences p;
+    p.begin("wifi_ap", false);
+    p.clear();
+    p.end();
     prov.resetCredentials();
   } else if (cmd == "csi") {
     Serial.println("[CSI] Wi-Fi CSI toggle (Level 11 feature)");
@@ -170,6 +174,10 @@ static void checkBootButton() {
       Serial.println("[CMD] BOOT held 5s: Resetting Wi-Fi credentials and restarting into setup mode...");
       ledSetOverride(true, 0, 0, 255); // Blue light
       buzzerBeep(3, 80);
+      Preferences p;
+      p.begin("wifi_ap", false);
+      p.clear();
+      p.end();
       prov.resetCredentials();
       pressed = false;
     } else if (held > 3000 && held <= 3200) {
@@ -208,6 +216,22 @@ void setup() {
   sensorsInit();
   rfidInit();
   doorInit();
+
+  // WiFi event hooks for clean [NET] logs on connect/disconnect
+  WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
+    if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+      if (state.wifiConnected) {
+        Serial.println("[NET] Wi-Fi disconnected");
+        state.wifiConnected = false;
+        state.cloudReachable = false;
+        mdnsStarted = false;
+      }
+    } else if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP) {
+      Serial.printf("[NET] Wi-Fi connected | IP: %s\n", WiFi.localIP().toString().c_str());
+      state.wifiConnected = true;
+      startMdns();
+    }
+  });
 
   // WiFi provisioning via SmartProv captive portal (non-blocking)
   wifiProvInit();
@@ -266,7 +290,7 @@ void loop() {
   handleSerialCommands();
 
   // Service SmartProv portal & DNS redirector
-  prov.update();
+  wifiProvLoop();
 
   // Service local WebServer & mDNS once Wi-Fi is active
   if (wifiIsConnected()) {

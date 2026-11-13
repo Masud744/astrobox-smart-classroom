@@ -32,12 +32,24 @@ static String getDisplayStatus() {
 }
 
 static String getConnectionState() {
-  return state.wifiConnected ? "LIVE" : "OFFLINE";
+  return (state.wifiConnected && state.cloudReachable) ? "LIVE" : "OFFLINE";
 }
 
 // ── Route Handlers ────────────────────────────────────────
 
 static void handleRoot() {
+  if (LittleFS.begin(false)) {
+    if (LittleFS.exists("/index.html")) {
+      File file = LittleFS.open("/index.html", "r");
+      if (file && file.size() > 50) {
+        server.streamFile(file, "text/html");
+        file.close();
+        return;
+      }
+      if (file) file.close();
+    }
+  }
+
   String html = R"(<!DOCTYPE html><html>
 <head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'>
 <meta http-equiv='refresh' content='2'>
@@ -211,16 +223,17 @@ void localServerInit() {
 
   // Ensure LittleFS is mounted and /index.html is stored on flash filesystem (Level 2 Task 3)
   if (LittleFS.begin(true)) {
-    if (!LittleFS.exists("/index.html")) {
+    if (!LittleFS.exists("/index.html") || LittleFS.open("/index.html", "r").size() < 100) {
       File f = LittleFS.open("/index.html", FILE_WRITE);
       if (f) {
-        f.print("<!-- FastRobox Smart Classroom Local Status Page Stored in LittleFS -->");
+        f.print(R"(<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1.0'><meta http-equiv='refresh' content='2'><title>FastRobox Status</title><style>:root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#c9d1d9}body{margin:0;padding:1.5rem;background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;max-width:650px;margin:auto}.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:.8rem 1rem;margin-bottom:.5rem;display:flex;justify-content:space-between}h2{color:#a855f7}.ok{color:#22c55e}.warn{color:#ef4444}.btn{background:#7c3aed;color:#fff;border:none;padding:.5rem 1rem;border-radius:6px;cursor:pointer;margin-right:.5rem}</style></head><body><h2>FastRobox Smart Classroom (LittleFS)</h2><div id='content'>Loading...</div><div style='margin-top:1rem'><form action='/door' method='POST' style='display:inline'><button class='btn'>Toggle Door</button></form><a href='/stream' target='_blank'><button class='btn' style='background:#2563eb' type='button'>Camera</button></a></div><script>function u(){fetch('/status.json').then(r=>r.json()).then(d=>{document.getElementById('content').innerHTML="<div class='card'><span>Room ID:</span><b>"+d.room_id+"</b></div><div class='card'><span>Local Time (Dhaka):</span><b>"+d.local_time+"</b></div><div class='card'><span>Connection:</span><b class='"+(d.connection_state==='LIVE'?'ok':'warn')+"'>"+d.connection_state+"</b></div><div class='card'><span>Temperature:</span><b>"+d.temperature.toFixed(1)+" °C</b></div><div class='card'><span>Humidity:</span><b>"+d.humidity.toFixed(1)+" %</b></div><div class='card'><span>Heat Index:</span><b>"+d.heat_index.toFixed(1)+" °C</b></div><div class='card'><span>Heat Trend:</span><b>"+d.heat_trend+"</b></div><div class='card'><span>Quality:</span><b>"+d.quality+"</b></div><div class='card'><span>Flame:</span><b class='"+(d.flame?'warn':'ok')+"'>"+(d.flame?'🔥 DETECTED':'✅ SAFE')+"</b></div><div class='card'><span>Door:</span><b class='"+(d.door_locked?'warn':'ok')+"'>"+(d.door_locked?'🔒 LOCKED':'🔓 UNLOCKED')+"</b></div><div class='card'><span>Last Card UID:</span><b style='color:#a855f7'>"+d.last_card_uid+"</b></div><div class='card'><span>WiFi RSSI:</span><b>"+d.wifi_rssi+" dBm</b></div><div class='card'><span>Chip Temp:</span><b>"+d.chip_temp.toFixed(1)+" °C</b></div><div class='card'><span>Firmware:</span><b>v"+d.firmware+"</b></div><div class='card'><span>Uptime:</span><b>"+d.uptime_sec+" s</b></div>";}).catch(()=>{});}u();setInterval(u,2000);</script></body></html>)");
         f.close();
       }
     }
   }
 
   server.on("/",                   HTTP_GET,  handleRoot);
+  server.on("/index.html",          HTTP_GET,  handleRoot);
   server.on("/status.json",        HTTP_GET,  handleStatusJson);
   server.on("/door",               HTTP_POST, handleDoorToggle);
   server.on("/rfid/register",      HTTP_POST, handleRfidRegister);
@@ -228,7 +241,7 @@ void localServerInit() {
   server.on("/stream",             HTTP_GET,  handleStream);
   server.begin();
   localServerRunning = true;
-  Serial.printf("[http] Local server active at http://%s:%d\n",
+  Serial.printf("[NET] Local server active at http://%s:%d\n",
                 WiFi.localIP().toString().c_str(), LOCAL_SERVER_PORT);
 }
 

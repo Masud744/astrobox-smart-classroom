@@ -10,6 +10,7 @@ from typing import Optional
 from datetime import datetime, timezone
 import os
 import shutil
+import asyncio
 
 load_dotenv()
 
@@ -24,10 +25,41 @@ DASHBOARD_DIST = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "
 DASHBOARD_INDEX = os.path.join(DASHBOARD_DIST, "index.html")
 DASHBOARD_ASSETS = os.path.join(DASHBOARD_DIST, "assets")
 
+# Device Online / Offline Tracker (Level 2 Task 10)
+device_is_offline = False
+last_telemetry_time: Optional[datetime] = None
+
+async def monitor_device_offline_loop():
+    global device_is_offline, last_telemetry_time
+    while True:
+        await asyncio.sleep(5)
+        try:
+            now = datetime.now(timezone.utc)
+            if not last_telemetry_time:
+                res = db.table("telemetry").select("logged_at").order("logged_at", desc=True).limit(1).execute()
+                if res.data:
+                    ts_str = res.data[0]["logged_at"].replace("Z", "+00:00")
+                    last_telemetry_time = datetime.fromisoformat(ts_str)
+
+            if last_telemetry_time:
+                diff = (now - last_telemetry_time).total_seconds()
+                if diff > 30 and not device_is_offline:
+                    device_is_offline = True
+                    print(f"[monitor] Device silent for {diff:.1f}s (>30s) -> Marking DEVICE_OFFLINE")
+                    db.table("events").insert({
+                        "room_id": "ROOM-01",
+                        "type": "DEVICE_OFFLINE",
+                        "detail": {"silent_seconds": int(diff)}
+                    }).execute()
+        except Exception as e:
+            print(f"[monitor] Offline check error: {e}")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("FastRobox API starting...")
+    task = asyncio.create_task(monitor_device_offline_loop())
     yield
+    task.cancel()
     print("FastRobox API stopped.")
 
 app = FastAPI(title="FastRobox Smart Classroom API", version="1.1.0", lifespan=lifespan)
@@ -169,15 +201,45 @@ def patch_settings(payload: SettingsPatch):
 
 @app.post("/api/telemetry")
 def post_telemetry(payload: TelemetryPayload):
-    # Enforce deduplication by (device_id, seq) — returns 409 Conflict if replayed
+    global device_is_offline, last_telemetry_time
+
+    # Enforce deduplication by (device_id, seq) — returns 409 Conflict if replayed (Level 2 Task 9)
     existing = db.table("telemetry").select("id")\
         .eq("device_id", payload.device_id)\
         .eq("seq", payload.seq).execute()
     if existing.data:
         raise HTTPException(status_code=409, detail="Duplicate seq - replay rejected")
 
+    # Track device activity (Level 2 Task 10)
+    last_telemetry_time = datetime.now(timezone.utc)
+    if device_is_offline:
+        device_is_offline = False
+        print("[monitor] Device resumed communication -> Marking DEVICE_ONLINE")
+        db.table("events").insert({
+            "device_id": payload.device_id,
+            "room_id": payload.room_id,
+            "type": "DEVICE_ONLINE",
+            "detail": {"status": "resumed"}
+        }).execute()
+
     res = db.table("telemetry").insert(payload.model_dump()).execute()
     return {"ok": True, "id": res.data[0]["id"] if res.data else None}
+
+@app.get("/api/device/status")
+def get_device_status():
+    global device_is_offline, last_telemetry_time
+    now = datetime.now(timezone.utc)
+    if last_telemetry_time:
+        diff = (now - last_telemetry_time).total_seconds()
+        is_online = diff <= 30
+    else:
+        is_online = False
+        diff = 999
+    return {
+        "online": is_online,
+        "silent_seconds": int(diff),
+        "status": "ONLINE" if is_online else "OFFLINE"
+    }
 
 @app.get("/api/telemetry/latest")
 def get_telemetry_latest(room_id: str = "ROOM-01"):
@@ -195,6 +257,13 @@ def get_telemetry_history(room_id: str = "ROOM-01", limit: int = 50):
 
 @app.post("/api/event")
 def post_event(payload: EventPayload):
+    if payload.device_id and payload.seq is not None:
+        existing = db.table("events").select("id")\
+            .eq("device_id", payload.device_id)\
+            .eq("seq", payload.seq).execute()
+        if existing.data:
+            raise HTTPException(status_code=409, detail="Duplicate seq - replay rejected")
+
     res = db.table("events").insert(payload.model_dump()).execute()
     return {"ok": True, "id": res.data[0]["id"] if res.data else None}
 

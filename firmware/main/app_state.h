@@ -54,8 +54,10 @@ struct AppState {
   String    lastSilenceRefusedMsg = "";
 
   // Device & Telemetry identification (Level 2)
-  String        deviceId     = "T10-D1";
-  uint32_t      seq          = 0;
+  String        deviceId       = "T10-D1";
+  String        deviceToken    = "";
+  uint32_t      seq            = 0;
+  bool          cloudReachable = false;
 
   // Runtime flags
   bool wifiConnected = false;
