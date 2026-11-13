@@ -155,7 +155,7 @@ export default function App() {
         body: JSON.stringify({
           room_id: settings.room_id || 'ROOM-01',
           state: newState,
-          trigger: currentUser ? 'dashboard_teacher' : 'dashboard_quick'
+          trigger: 'dashboard'
         })
       });
     } catch (err) {
