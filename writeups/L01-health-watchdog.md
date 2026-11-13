@@ -92,3 +92,4 @@ Sensor error detection tracks consecutive failed DHT11 reads (NaN values, 4s apa
 ## 8. Lessons Learned
 
 [Fill after competition]
+

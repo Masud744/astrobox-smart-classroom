@@ -96,3 +96,4 @@ The touch pad uses ESP32-S3's capacitive touch hardware. Holds under 1 second ar
 ## 8. Lessons Learned
 
 [Fill after competition]
+

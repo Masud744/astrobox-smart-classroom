@@ -89,3 +89,4 @@ The `/api/telemetry` endpoint checks `(device_id, seq)` uniqueness before insert
 ## 8. Lessons Learned
 
 [Fill after competition]
+

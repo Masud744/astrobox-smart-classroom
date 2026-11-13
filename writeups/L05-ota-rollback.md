@@ -84,3 +84,4 @@ The `/api/settings` PUT endpoint validates that `warning_temp < danger_temp` and
 ## 8. Lessons Learned
 
 [Fill after competition]
+

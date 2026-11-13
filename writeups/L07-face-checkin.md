@@ -91,3 +91,4 @@ The check-in endpoint looks up the card UID in `card_links` to find the student,
 ## 8. Lessons Learned
 
 [Fill after competition]
+

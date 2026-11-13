@@ -38,3 +38,4 @@ writeups/
 | Level 6 | `L06-weather-ai.md` | `T07_L06_writeup.pdf` |
 | Level 7 | `L07-face-checkin.md` | `T07_L07_writeup.pdf` |
 | Level 8 | `L08-antispoof.md` | `T07_L08_writeup.pdf` |
+

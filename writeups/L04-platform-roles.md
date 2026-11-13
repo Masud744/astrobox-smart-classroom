@@ -87,3 +87,4 @@ The dashboard uses a `useTranslation()` hook with `src/translations/en.js` and `
 ## 8. Lessons Learned
 
 [Fill after competition]
+

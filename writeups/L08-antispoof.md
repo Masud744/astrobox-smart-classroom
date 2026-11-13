@@ -89,3 +89,4 @@ Deleting a student triggers: (1) face embedding cleared, (2) card_link removed, 
 ## 8. Lessons Learned
 
 [Fill after competition]
+
