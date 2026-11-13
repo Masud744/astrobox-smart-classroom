@@ -10,6 +10,7 @@ Follow ALL rules below at ALL times without being asked.
 
 | ফাইল | কী আছে |
 |------|---------|
+| `docs/RENDER-DEPLOY.md` | Render.com deploy guide (backend + frontend) |
 | `docs/PHASE-0-prereqs.md` | Critical bug fixes + Backend deploy |
 | `docs/PHASE-1-level1.md` | Level 1: Health, Watchdog, Serial |
 | `docs/PHASE-2-level2.md` | Level 2: WiFi Setup + Telemetry |
@@ -21,6 +22,16 @@ Follow ALL rules below at ALL times without being asked.
 | `docs/PHASE-8-level8.md` | Level 8: Anti-Spoof + Lockout |
 | `docs/VERIFICATION-CHECKLIST.md` | ✅ Per-phase verify list |
 | `docs/COMPETITION-DAY.md` | Competition day timeline + call script |
+| `writeups/` | **Level writeups** — fill after each level pass |
+| `writeups/TEMPLATE.md` | Blank writeup template |
+| `writeups/L01-health-watchdog.md` | Level 1 writeup (pre-filled, complete after pass) |
+| `writeups/L02-wifi-telemetry.md` | Level 2 writeup |
+| `writeups/L03-heat-fire-panic.md` | Level 3 writeup |
+| `writeups/L04-platform-roles.md` | Level 4 writeup |
+| `writeups/L05-ota-rollback.md` | Level 5 writeup |
+| `writeups/L06-weather-ai.md` | Level 6 writeup |
+| `writeups/L07-face-checkin.md` | Level 7 writeup |
+| `writeups/L08-antispoof.md` | Level 8 writeup |
 
 > কোনো phase-এর কাজ শুরুর আগে সেই phase-এর `.md` ফাইল পড়বে।
 > কাজ শেষে `docs/VERIFICATION-CHECKLIST.md`-এ সেই phase-এর সব checkbox tick করবে।
@@ -85,10 +96,12 @@ Never leave changes uncommitted. Never ask the user if they want to push. Just d
 
 After EVERY level pass:
 1. `git commit + tag + push` immediately
-2. Fill write-up within 30 min → `.skills/writeup-template.md`
-3. Record video (720p+, max 10 min) — stopwatch must be visible
-4. Rename: `T07_L<NN>_video.mp4` and `T07_L<NN>_writeup.pdf`
-5. Upload to submission portal within 30 minutes
+2. Open `writeups/L0N-<title>.md` → fill in: Pass Time, Marks, Lessons Learned, Commit hash
+3. Export writeup as PDF: `T07_L0N_writeup.pdf`
+4. Record video (720p+, max 10 min) — stopwatch must be visible
+5. Rename video: `T07_L0N_video.mp4`
+6. Upload both to submission portal within 30 minutes
+7. Commit updated writeup: `git add writeups/ && git commit -m "writeup: level-NN complete"`
 
 ---
 

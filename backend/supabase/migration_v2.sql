@@ -144,3 +144,4 @@ CREATE TABLE attendance (
   UNIQUE(class_id, student_id, date)
 );
 ALTER TABLE attendance ENABLE ROW LEVEL SECURITY;
+

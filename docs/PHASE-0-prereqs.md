@@ -33,19 +33,29 @@ ALTER TABLE alerts ADD CONSTRAINT alerts_alert_type_check
   - `telemetry` table (device_id + seq UNIQUE)
   - `events` table
 
-### 0C — Backend Deploy (Railway)
+### 0C — Backend + Frontend Deploy (Render)
 
-- [ ] [railway.app](https://railway.app) → New project → GitHub repo connect
-- [ ] Environment variables set করো:
+- [ ] [render.com](https://render.com) → Sign in with GitHub → **New** → **Web Service**
+- [ ] Connect repo, settings:
+  - **Root Directory**: `backend`
+  - **Build Command**: `pip install -r requirements.txt`
+  - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+- [ ] Environment variables on Render dashboard:
   ```
   SUPABASE_URL = https://oxxfnnecwvslmkxqhfgb.supabase.co
-  SUPABASE_ANON_KEY = (তোমার actual key — backend/.env থেকে)
+  SUPABASE_ANON_KEY = (backend/.env থেকে নাও)
   ```
-- [ ] Deploy হলে public URL note করো
-- [ ] Test: `curl https://<your-url>/` → `{"status":"ok"}` দেখাবে
-- [ ] `dashboard/.env`-এ যোগ করো: `VITE_API_URL=https://<your-url>`
-- [ ] Dashboard rebuild: `npm run build` (dashboard/ folder-এ)
-- [ ] Git commit + push
+- [ ] Deploy হলে backend URL note করো (e.g. `https://fastrobox-backend.onrender.com`)
+- [ ] Test: `curl https://fastrobox-backend.onrender.com/` → `{"status":"ok"}` দেখাবে
+- [ ] **New** → **Static Site** (dashboard):
+  - **Root Directory**: `dashboard`
+  - **Build Command**: `npm install && npm run build`
+  - **Publish Directory**: `dist`
+  - Env vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_URL=<backend-url>`
+- [ ] Dashboard URL note করো
+- [ ] `dashboard/.env`-এ update করো: `VITE_API_URL=https://fastrobox-backend.onrender.com`
+- [ ] Rebuild dashboard locally + git commit + push
+- [ ] Full deploy guide: `docs/RENDER-DEPLOY.md`
 
 ### 0D — Dashboard Camera URL Fix
 
@@ -72,3 +82,4 @@ ALTER TABLE alerts ADD CONSTRAINT alerts_alert_type_check
 - `dashboard/.env` → `.gitignore`-এ `.env` already আছে, সরাসরি এই নামে save করলেই হবে
 - Supabase anon key technically public-safe, কিন্তু কোডে রাখলে judge DQ করবে
 - Railway free tier-এ sleep mode আছে — competition-এ আগে একবার ping করো
+
