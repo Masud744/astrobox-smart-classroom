@@ -48,6 +48,33 @@ if os.path.exists(DASHBOARD_ASSETS):
 
 # ── Pydantic Models ────────────────────────────────────────
 
+class TelemetryPayload(BaseModel):
+    device_id: str
+    room_id: Optional[str] = "ROOM-01"
+    seq: int
+    ts: Optional[int] = None
+    uptime_s: Optional[int] = None
+    temp_c: Optional[float] = None
+    rh: Optional[float] = None
+    heat_index_c: Optional[float] = None
+    flame: Optional[bool] = False
+    door: Optional[str] = "LOCKED"
+    status: Optional[str] = "SAFE"
+    heat_trend: Optional[str] = None
+    rssi: Optional[int] = None
+    heap_kb: Optional[int] = None
+    chip_temp_c: Optional[float] = None
+    fw: Optional[str] = "1.0.0"
+    quality: Optional[str] = "good"
+
+class EventPayload(BaseModel):
+    device_id: Optional[str] = None
+    room_id: Optional[str] = "ROOM-01"
+    seq: Optional[int] = None
+    ts: Optional[int] = None
+    type: str
+    detail: Optional[dict] = None
+
 class SensorPayload(BaseModel):
     room_id: str
     temperature: Optional[float] = None
@@ -118,6 +145,47 @@ def patch_settings(payload: SettingsPatch):
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()
     res = db.table("settings").update(updates).eq("id", 1).execute()
     return res.data[0] if res.data else {"ok": True}
+
+# ── Telemetry & Events (Level 2) ───────────────────────────
+
+@app.post("/api/telemetry")
+def post_telemetry(payload: TelemetryPayload):
+    # Enforce deduplication by (device_id, seq) — returns 409 Conflict if replayed
+    existing = db.table("telemetry").select("id")\
+        .eq("device_id", payload.device_id)\
+        .eq("seq", payload.seq).execute()
+    if existing.data:
+        raise HTTPException(status_code=409, detail="Duplicate seq - replay rejected")
+
+    res = db.table("telemetry").insert(payload.model_dump()).execute()
+    return {"ok": True, "id": res.data[0]["id"] if res.data else None}
+
+@app.get("/api/telemetry/latest")
+def get_telemetry_latest(room_id: str = "ROOM-01"):
+    res = db.table("telemetry").select("*").eq("room_id", room_id)\
+        .order("logged_at", desc=True).limit(1).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="No telemetry data yet")
+    return res.data[0]
+
+@app.get("/api/telemetry/history")
+def get_telemetry_history(room_id: str = "ROOM-01", limit: int = 50):
+    res = db.table("telemetry").select("*").eq("room_id", room_id)\
+        .order("logged_at", desc=True).limit(limit).execute()
+    return res.data
+
+@app.post("/api/event")
+def post_event(payload: EventPayload):
+    res = db.table("events").insert(payload.model_dump()).execute()
+    return {"ok": True, "id": res.data[0]["id"] if res.data else None}
+
+@app.get("/api/events")
+def get_events(limit: int = 50, event_type: Optional[str] = None):
+    query = db.table("events").select("*").order("logged_at", desc=True)
+    if event_type:
+        query = query.eq("type", event_type)
+    res = query.limit(limit).execute()
+    return res.data
 
 # ── Sensor ─────────────────────────────────────────────────
 
