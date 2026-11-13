@@ -237,12 +237,3 @@ void localServerHandle() {
     server.handleClient();
   }
 }
-  Serial.printf("[http] Local server active at http://%s:%d\n",
-                WiFi.localIP().toString().c_str(), LOCAL_SERVER_PORT);
-}
-
-void localServerHandle() {
-  if (localServerRunning) {
-    server.handleClient();
-  }
-}

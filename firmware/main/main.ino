@@ -70,11 +70,11 @@ static void startMdns() {
   if (mdnsStarted) return;
   if (!wifiIsConnected()) return;
 
-  if (MDNS.begin("smartclass-10")) {
+  if (MDNS.begin("smartclass-t07")) {
     MDNS.addService("http", "tcp", LOCAL_SERVER_PORT);
     mdnsStarted = true;
-    Serial.printf("[mdns] Responder active: http://smartclass-10.local\n");
-    Serial.printf("[wifi] IP: %s | mDNS: http://smartclass-10.local\n",
+    Serial.printf("[mdns] Responder active: http://smartclass-t07.local\n");
+    Serial.printf("[wifi] IP: %s | mDNS: http://smartclass-t07.local\n",
                   WiFi.localIP().toString().c_str());
   }
 }

@@ -67,7 +67,7 @@ bool cloudPostTelemetry() {
   time(&nowTs);
 
   JsonDocument doc;
-  doc["device_id"]    = state.deviceId.isEmpty() ? "T10-D1" : state.deviceId;
+  doc["device_id"]    = state.deviceId.isEmpty() ? "T07-D1" : state.deviceId;
   doc["room_id"]      = state.roomId.isEmpty() ? "ROOM-01" : state.roomId;
   doc["seq"]          = seq;
   doc["ts"]           = (long)nowTs;
@@ -98,7 +98,7 @@ bool cloudPostEvent(const String& type, const String& detailJson) {
   time_t nowTs = 0;
   time(&nowTs);
 
-  String body = "{\"device_id\":\"" + (state.deviceId.isEmpty() ? "T10-D1" : state.deviceId) + "\","
+  String body = "{\"device_id\":\"" + (state.deviceId.isEmpty() ? "T07-D1" : state.deviceId) + "\","
                 "\"room_id\":\"" + (state.roomId.isEmpty() ? "ROOM-01" : state.roomId) + "\","
                 "\"seq\":" + String(seq) + ","
                 "\"ts\":" + String((long)nowTs) + ","

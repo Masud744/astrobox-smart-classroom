@@ -54,7 +54,7 @@ struct AppState {
   String    lastSilenceRefusedMsg = "";
 
   // Device & Telemetry identification (Level 2)
-  String        deviceId     = "T10-D1";
+  String        deviceId     = "T07-D1";
   uint32_t      seq          = 0;
 
   // Runtime flags
