@@ -5,7 +5,7 @@ export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// API base for backend endpoints (same origin in production or port 8000 in dev)
+// API base for backend endpoints (same origin in production/port 3000, or port 3000 in dev)
 export const API_BASE = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
-  ? 'http://localhost:8000'
+  ? (window.location.port === '3000' ? '' : (import.meta.env?.VITE_API_URL || 'http://localhost:3000'))
   : '';

@@ -122,8 +122,24 @@ export default function App() {
 
   useEffect(() => {
     fetchData();
+
+    // ── Supabase Realtime Listener (Instant zero-delay updates) ──
+    const realtimeChannel = supabase
+      .channel('classroom-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sensor_logs' }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'door_events' }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'alerts' }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, () => fetchData())
+      .subscribe();
+
+    // Polling fallback every 4s for safety
     const timer = setInterval(fetchData, 4000);
-    return () => clearInterval(timer);
+
+    return () => {
+      clearInterval(timer);
+      supabase.removeChannel(realtimeChannel);
+    };
   }, [fetchData]);
 
   // ── Toggle Door Action ──────────────────────────────────
