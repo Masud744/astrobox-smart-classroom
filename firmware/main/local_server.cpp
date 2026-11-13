@@ -3,11 +3,13 @@
 #include "door.h"
 #include "rfid.h"
 #include "config.h"
+#include "wifi_prov.h"
 #include <WebServer.h>
 #include <ArduinoJson.h>
 #include <WiFi.h>
 
 static WebServer server(LOCAL_SERVER_PORT);
+static bool localServerRunning = false;
 
 // ── Route Handlers ────────────────────────────────────────
 
@@ -101,16 +103,22 @@ static void handleStream() {
 // ── Public API ────────────────────────────────────────────
 
 void localServerInit() {
+  if (localServerRunning) return;
+  if (!wifiIsConnected()) return; // Prevent port 80 collision with SmartProv in AP mode
+
   server.on("/",              HTTP_GET,  handleRoot);
   server.on("/status.json",   HTTP_GET,  handleStatusJson);
   server.on("/door",          HTTP_POST, handleDoorToggle);
   server.on("/rfid/register", HTTP_POST, handleRfidRegister);
   server.on("/stream",        HTTP_GET,  handleStream);
   server.begin();
+  localServerRunning = true;
   Serial.printf("[http] Local server active at http://%s:%d\n",
                 WiFi.localIP().toString().c_str(), LOCAL_SERVER_PORT);
 }
 
 void localServerHandle() {
-  server.handleClient();
+  if (localServerRunning) {
+    server.handleClient();
+  }
 }

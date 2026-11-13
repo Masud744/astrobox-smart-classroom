@@ -13,7 +13,6 @@
 #include "led.h"
 #include "buzzer.h"
 #include <time.h>
-#include "SmartProv.h"
 #include <esp_task_wdt.h>
 #include <esp_system.h>
 
@@ -46,8 +45,6 @@ static const char* getResetReasonStr(esp_reset_reason_t reason) {
 
 // ── 1-Second Status Line (Level 1 exact format) ───────────
 static void printStatusLine() {
-  // Exact question paper format:
-  // [STATUS] up=742s T=29.0C RH=64% HI=- flame=0 door=LOCKED state=SAFE trend=- rssi=-61 heap=182k psram=7104k chip=41.5C fw=1.0.0
   Serial.printf(
     "[STATUS] up=%lus T=%.1fC RH=%.0f%% HI=- flame=%d door=%s state=%s trend=- rssi=%d heap=%luk psram=%luk chip=%.1fC fw=%s\n",
     millis() / 1000,
@@ -114,10 +111,14 @@ static void ntpSync() {
   Serial.print("[ntp]  Syncing network time");
   struct tm t;
   for (int i = 0; i < 20 && !getLocalTime(&t); i++) {
-    delay(300);
+    delay(200);
     Serial.print(".");
   }
-  Serial.println(" synced!");
+  if (getLocalTime(&t)) {
+    Serial.println(" synced!");
+  } else {
+    Serial.println(" skipped (will retry).");
+  }
 }
 
 // ── BOOT Button: Long-press Actions ───────────────────────
@@ -173,14 +174,20 @@ void setup() {
   rfidInit();
   doorInit();
 
-  // WiFi provisioning via SmartProv captive portal
+  // WiFi provisioning via SmartProv captive portal (non-blocking)
   wifiProvInit();
-  ledSetOverride(true, 0, 0, 255); // Blue = Provisioning done, syncing
 
-  ntpSync();
+  if (wifiIsConnected()) {
+    ledSetOverride(true, 0, 0, 255); // Blue = Provisioning done, syncing
+    ntpSync();
+    localServerInit();
+    cloudPollSettings();
+    cloudPostHeartbeat();
+    offlineFlush();
+  }
+
   cameraInit();
   faceInit();
-  localServerInit();
 
   // Core 1 dedicated camera stream & face recognition task
   faceSemaphore = xSemaphoreCreateMutex();
@@ -194,11 +201,6 @@ void setup() {
     1
   );
 
-  // Initial cloud polling and heartbeat
-  cloudPollSettings();
-  cloudPostHeartbeat();
-  offlineFlush();
-
   // Level 1: Initialize Task Watchdog (10s timeout, armed for loop protection)
   esp_task_wdt_config_t wdtConfig = {
     .timeout_ms = 10000,
@@ -208,7 +210,7 @@ void setup() {
   if (esp_task_wdt_init(&wdtConfig) == ESP_ERR_INVALID_STATE) {
     esp_task_wdt_reconfigure(&wdtConfig);
   }
-  esp_task_wdt_add(NULL); // Add current Core 0 loop thread to watchdog
+  esp_task_wdt_add(NULL); // Add current loop thread to watchdog
 
   // Ready: Release LED override to start 2 Hz heartbeat reflecting system state
   ledSetOverride(false);
@@ -226,9 +228,14 @@ void loop() {
   // Service Serial Command Parser (Level 1)
   handleSerialCommands();
 
-  // Service SmartProv portal & local WebServer
+  // Service SmartProv portal & DNS redirector
   prov.update();
-  localServerHandle();
+
+  // Service local WebServer once Wi-Fi is active
+  if (wifiIsConnected()) {
+    localServerInit();
+    localServerHandle();
+  }
 
   // Continuous sensor & security monitoring
   flameCheck();
@@ -258,32 +265,40 @@ void loop() {
   if (now - tSensor >= INTERVAL_SENSOR) {
     tSensor = now;
     sensorsRead();
-    cloudPostSensor();
+    if (wifiIsConnected()) {
+      cloudPostSensor();
+    }
   }
 
   // ── Remote settings poll & connection health (10s interval)
   if (now - tSettings >= INTERVAL_SETTINGS) {
     tSettings = now;
-    cloudPollSettings();
-
-    bool wifiNow = wifiIsConnected();
-    if (!state.wifiConnected && wifiNow) {
-      Serial.println("[wifi] Connection restored, flushing offline queue");
-      offlineFlush();
+    if (wifiIsConnected()) {
+      cloudPollSettings();
+      if (!state.wifiConnected) {
+        Serial.println("[wifi] Connection established/restored, syncing NTP & offline queue");
+        ntpSync();
+        offlineFlush();
+        state.wifiConnected = true;
+      }
+    } else {
+      state.wifiConnected = false;
     }
-    state.wifiConnected = wifiNow;
   }
 
   // ── Cloud heartbeat telemetry (30s interval) ────────────
   if (now - tHeartbeat >= INTERVAL_HEARTBEAT) {
     tHeartbeat = now;
-    cloudPostHeartbeat();
+    if (wifiIsConnected()) {
+      cloudPostHeartbeat();
+    }
   }
 
   // ── Firmware OTA polling (30m interval) ──────────────────
   if (now - tOTA >= INTERVAL_OTA_CHECK) {
     tOTA = now;
-    cloudCheckOTA();
+    if (wifiIsConnected()) {
+      cloudCheckOTA();
+    }
   }
 }
-
