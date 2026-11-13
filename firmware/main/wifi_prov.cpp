@@ -3,8 +3,6 @@
 #include "config.h"
 #include <WiFi.h>
 
-SmartProv prov;
-
 void wifiProvInit() {
   // Dynamic fields configured via captive portal — NO HARDCODED VALUES
   prov.addField("cloud_url",   "Cloud API URL",       "https://");
