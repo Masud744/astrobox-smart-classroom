@@ -160,17 +160,6 @@ void setup() {
   Serial.println("  FastRobox AI-Powered Smart Classroom v" FIRMWARE_VERSION);
   Serial.println("==============================================");
 
-  // Level 1: Initialize Task Watchdog (10s timeout, panic on trigger)
-  esp_task_wdt_config_t wdtConfig = {
-    .timeout_ms = 10000,
-    .idle_core_mask = 0,
-    .trigger_panic = true
-  };
-  if (esp_task_wdt_init(&wdtConfig) == ESP_ERR_INVALID_STATE) {
-    esp_task_wdt_reconfigure(&wdtConfig);
-  }
-  esp_task_wdt_add(NULL); // Add current Core 0 thread to watchdog
-
   // Initialize status LED and start background 2 Hz FreeRTOS heartbeat task
   ledInit();
   ledSetOverride(true, 255, 165, 0); // Orange = Booting
@@ -209,6 +198,17 @@ void setup() {
   cloudPollSettings();
   cloudPostHeartbeat();
   offlineFlush();
+
+  // Level 1: Initialize Task Watchdog (10s timeout, armed for loop protection)
+  esp_task_wdt_config_t wdtConfig = {
+    .timeout_ms = 10000,
+    .idle_core_mask = 0,
+    .trigger_panic = true
+  };
+  if (esp_task_wdt_init(&wdtConfig) == ESP_ERR_INVALID_STATE) {
+    esp_task_wdt_reconfigure(&wdtConfig);
+  }
+  esp_task_wdt_add(NULL); // Add current Core 0 loop thread to watchdog
 
   // Ready: Release LED override to start 2 Hz heartbeat reflecting system state
   ledSetOverride(false);

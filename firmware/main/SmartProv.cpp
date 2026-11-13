@@ -61,22 +61,17 @@ void SmartProv::setupApPortal() {
   inApMode = true;
   connected = false;
 
-  // Generate or load 8-character random AP password (saved in NVS)
-  prefs.begin("smartprov", false);
-  apPass = prefs.getString("appass", "");
-  if (apPass.length() < 8) {
-    const char chars[] = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-    apPass = "";
-    for (int i = 0; i < 8; i++) {
-      apPass += chars[random(sizeof(chars) - 1)];
-    }
-    prefs.putString("appass", apPass);
-  }
-  prefs.end();
-
+  // Easy 8-character password per question paper specification
+  apPass = "12345678";
   apSsid = "SmartClass-T07"; // Team ID T07
-  WiFi.mode(WIFI_AP_STA);
-  WiFi.softAP(apSsid.c_str(), apPass.c_str());
+
+  IPAddress apIP(192, 168, 4, 1);
+  IPAddress gateway(192, 168, 4, 1);
+  IPAddress subnet(255, 255, 255, 0);
+
+  WiFi.mode(WIFI_AP);
+  WiFi.softAPConfig(apIP, gateway, subnet);
+  WiFi.softAP(apSsid.c_str(), apPass.c_str(), 1, 0, 4);
 
   Serial.printf("[NET] Setup AP: %s | password: %s\n", apSsid.c_str(), apPass.c_str());
   Serial.printf("[prov] Portal available at http://%s\n", WiFi.softAPIP().toString().c_str());
@@ -191,3 +186,4 @@ void SmartProv::update() {
     server->handleClient();
   }
 }
+

@@ -2,6 +2,7 @@
 #include "app_state.h"
 #include "config.h"
 #include <WiFi.h>
+#include <esp_task_wdt.h>
 
 void wifiProvInit() {
   // Dynamic fields configured via captive portal — NO HARDCODED VALUES
@@ -14,6 +15,7 @@ void wifiProvInit() {
   Serial.print("[wifi] Waiting for network connection");
   while (!prov.isConnected()) {
     prov.update();
+    esp_task_wdt_reset();
     Serial.print(".");
     delay(200);
   }
