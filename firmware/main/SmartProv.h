@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WebServer.h>
+#include <DNSServer.h>
 #include <Preferences.h>
 #include <vector>
 
@@ -19,6 +20,7 @@ class SmartProv {
 private:
   Preferences prefs;
   WebServer* server = nullptr;
+  DNSServer* dnsServer = nullptr;
   std::vector<ProvField> fields;
   bool connected = false;
   bool inApMode = false;
@@ -29,6 +31,7 @@ private:
   unsigned long connectStart = 0;
 
   void setupApPortal();
+  void handlePortalRoot();
 
 public:
   SmartProv();

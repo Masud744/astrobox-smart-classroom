@@ -5,6 +5,11 @@ SmartProv prov;
 SmartProv::SmartProv() {}
 
 SmartProv::~SmartProv() {
+  if (dnsServer) {
+    dnsServer->stop();
+    delete dnsServer;
+    dnsServer = nullptr;
+  }
   if (server) {
     delete server;
     server = nullptr;
@@ -57,38 +62,14 @@ void SmartProv::clearCredentials() {
   Serial.println("[prov] NVS credentials cleared");
 }
 
-void SmartProv::setupApPortal() {
-  inApMode = true;
-  connected = false;
-
-  // Easy 8-character password per question paper specification
-  apPass = "12345678";
-  apSsid = "SmartClass-T07"; // Team ID T07
-
-  IPAddress apIP(192, 168, 4, 1);
-  IPAddress gateway(192, 168, 4, 1);
-  IPAddress subnet(255, 255, 255, 0);
-
-  WiFi.mode(WIFI_AP);
-  WiFi.softAPConfig(apIP, gateway, subnet);
-  WiFi.softAP(apSsid.c_str(), apPass.c_str(), 1, 0, 4);
-
-  Serial.printf("[NET] Setup AP: %s | password: %s\n", apSsid.c_str(), apPass.c_str());
-  Serial.printf("[prov] Portal available at http://%s\n", WiFi.softAPIP().toString().c_str());
-
-  if (!server) {
-    server = new WebServer(80);
+void SmartProv::handlePortalRoot() {
+  int n = WiFi.scanNetworks();
+  String netOptions = "";
+  for (int i = 0; i < n; i++) {
+    netOptions += "<option value='" + WiFi.SSID(i) + "'>" + WiFi.SSID(i) + " (" + String(WiFi.RSSI(i)) + " dBm)</option>";
   }
 
-  server->on("/", HTTP_GET, [this]() {
-    // Scan nearby networks
-    int n = WiFi.scanNetworks();
-    String netOptions = "";
-    for (int i = 0; i < n; i++) {
-      netOptions += "<option value='" + WiFi.SSID(i) + "'>" + WiFi.SSID(i) + " (" + String(WiFi.RSSI(i)) + " dBm)</option>";
-    }
-
-    String html = R"(<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
+  String html = R"(<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
 <title>SmartClass Setup</title>
 <style>
 body{font-family:sans-serif;background:#0d1117;color:#c9d1d9;padding:1.5rem;max-width:480px;margin:auto}
@@ -108,15 +89,59 @@ button{width:100%;background:#0284c7;color:#fff;border:none;padding:.8rem;border
 <input type='password' name='password' placeholder='Network password'>
 )";
 
-    for (const auto& f : fields) {
-      html += "<label>" + f.label + "</label>";
-      html += "<input type='text' name='" + f.name + "' value='" + f.value + "' placeholder='" + f.defVal + "'>";
-    }
+  for (const auto& f : fields) {
+    html += "<label>" + f.label + "</label>";
+    html += "<input type='text' name='" + f.name + "' value='" + f.value + "' placeholder='" + f.defVal + "'>";
+  }
 
-    html += R"(<button type='submit'>Save and Connect</button>
+  html += R"(<button type='submit'>Save and Connect</button>
 </form></body></html>)";
 
-    server->send(200, "text/html", html);
+  server->send(200, "text/html", html);
+}
+
+void SmartProv::setupApPortal() {
+  inApMode = true;
+  connected = false;
+
+  // Easy 8-character password per question paper specification
+  apPass = "12345678";
+  apSsid = "SmartClass-T07"; // Team ID T07
+
+  IPAddress apIP(192, 168, 4, 1);
+  IPAddress gateway(192, 168, 4, 1);
+  IPAddress subnet(255, 255, 255, 0);
+
+  WiFi.mode(WIFI_AP);
+  WiFi.softAPConfig(apIP, gateway, subnet);
+  WiFi.softAP(apSsid.c_str(), apPass.c_str(), 1, 0, 4);
+
+  Serial.printf("[NET] Setup AP: %s | password: %s\n", apSsid.c_str(), apPass.c_str());
+  Serial.printf("[prov] Portal available at http://%s\n", WiFi.softAPIP().toString().c_str());
+
+  // Captive DNS server: redirects any domain request (port 53) to 192.168.4.1
+  if (!dnsServer) {
+    dnsServer = new DNSServer();
+    dnsServer->start(53, "*", apIP);
+    Serial.println("[prov] Captive DNS Server started (* -> 192.168.4.1)");
+  }
+
+  if (!server) {
+    server = new WebServer(80);
+  }
+
+  // Setup captive portal redirect handlers
+  server->on("/", HTTP_GET, [this]() { handlePortalRoot(); });
+  server->on("/generate_204", HTTP_GET, [this]() { handlePortalRoot(); });      // Android captive portal
+  server->on("/gen_204", HTTP_GET, [this]() { handlePortalRoot(); });
+  server->on("/hotspot-detect.html", HTTP_GET, [this]() { handlePortalRoot(); }); // Apple iOS/macOS
+  server->on("/canonical.html", HTTP_GET, [this]() { handlePortalRoot(); });
+  server->on("/ncsi.txt", HTTP_GET, [this]() { handlePortalRoot(); });            // Windows
+  server->on("/connecttest.txt", HTTP_GET, [this]() { handlePortalRoot(); });
+
+  server->onNotFound([this]() {
+    server->sendHeader("Location", "http://192.168.4.1/", true);
+    server->send(302, "text/plain", "");
   });
 
   server->on("/save", HTTP_POST, [this]() {
@@ -182,8 +207,13 @@ void SmartProv::begin(int bootPin, int ledPin) {
 }
 
 void SmartProv::update() {
-  if (inApMode && server) {
-    server->handleClient();
+  if (inApMode) {
+    if (dnsServer) {
+      dnsServer->processNextRequest();
+    }
+    if (server) {
+      server->handleClient();
+    }
   }
 }
 
